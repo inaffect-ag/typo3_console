@@ -28,6 +28,7 @@ namespace Helhum\Typo3Console\Command;
  ***************************************************************/
 
 use Helhum\Typo3Console\Mvc\Controller\CommandController;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Alpha version of a setup command controller
@@ -83,7 +84,7 @@ class InstallCommandController extends CommandController {
 	}
 
 	/**
-	 *
+	 * Activates all packages that are configured in root composer.json
 	 */
 	public function activateComposerPackagesCommand() {
 
@@ -102,7 +103,6 @@ class InstallCommandController extends CommandController {
 		}
 
 		$activePackageKey = 'active-packages';
-//		var_dump($composerData);
 		if (!isset($composerData->extra->{$activePackageKey}) || !is_array($composerData->extra->{$activePackageKey})) {
 			$this->outputLine('No packages found to activate!');
 			$this->sendAndExit();
@@ -121,6 +121,24 @@ class InstallCommandController extends CommandController {
 			$service->install($packageKey);
 		}
 
+		$this->packageManager->forceSortAndSavePackageStates();
+	}
+
+	/**
+	 * Removes all package directories of inactive packages
+	 */
+	public function removeInactivePackagesCommand() {
+
+		// TODO: move elsewhere?
+
+		foreach ($this->packageManager->getAvailablePackages() as $package) {
+			if ($this->packageManager->isPackageActive($package->getPackageKey())) {
+				continue;
+			}
+			$this->outputLine('Removing Package: ' . $package->getPackageKey());
+			GeneralUtility::flushDirectory($package->getPackagePath());
+		}
+		$this->emitPackagesMayHaveChangedSignal();
 		$this->packageManager->forceSortAndSavePackageStates();
 	}
 
