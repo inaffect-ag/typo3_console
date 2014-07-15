@@ -88,6 +88,8 @@ class InstallCommandController extends CommandController {
 	 */
 	public function activateComposerPackagesCommand() {
 
+		$this->packageManager->forceSortAndSavePackageStates();
+
 		// TODO: move elsewhere?
 
 		if (!file_exists(PATH_site . 'composer.json')) {
