@@ -36,6 +36,23 @@ use Helhum\Typo3Console\Mvc\Controller\CommandController;
 class InstallCommandController extends CommandController {
 
 	/**
+	 * @var bool
+	 */
+	protected $requestAdminPermissions = TRUE;
+
+	/**
+	 * @var \TYPO3\CMS\Extbase\SignalSlot\Dispatcher
+	 * @inject
+	 */
+	protected $signalSlotDispatcher;
+
+	/**
+	 * @var \TYPO3\CMS\Core\Package\PackageManager
+	 * @inject
+	 */
+	protected $packageManager;
+
+	/**
 	 * @var \Helhum\Typo3Console\Install\CliSetupRequestHandler
 	 * @inject
 	 */
@@ -63,7 +80,56 @@ class InstallCommandController extends CommandController {
 
 		$this->outputLine();
 		$this->outputLine('Successfully installed TYPO3 CMS!');
-}
+	}
+
+	/**
+	 *
+	 */
+	public function activateComposerPackagesCommand() {
+
+		// TODO: move elsewhere?
+
+		if (!file_exists(PATH_site . 'composer.json')) {
+			$this->outputLine('No composer.json found in project root');
+			$this->sendAndExit(1);
+		}
+
+		$composerData = json_decode(file_get_contents(PATH_site . 'composer.json'));
+
+		if (!is_object($composerData)) {
+			$this->outputLine('composer.json seems to be invalid');
+			$this->sendAndExit(1);
+		}
+
+		$activePackageKey = 'active-packages';
+//		var_dump($composerData);
+		if (!isset($composerData->extra->{$activePackageKey}) || !is_array($composerData->extra->{$activePackageKey})) {
+			$this->outputLine('No packages found to activate!');
+			$this->sendAndExit();
+		}
+
+		// We need this later :-/
+		class_exists('TYPO3\Flow\Package\MetaData');
+		class_exists('TYPO3\Flow\Package\MetaData\PackageConstraint');
+		class_exists('TYPO3\Flow\Package\Exception\InvalidPackageStateException');
+
+		$this->emitPackagesMayHaveChangedSignal();
+		/** @var $service \TYPO3\CMS\Extensionmanager\Utility\InstallUtility */
+		$service = $this->objectManager->get('TYPO3\\CMS\\Extensionmanager\\Utility\\InstallUtility');
+		foreach ($composerData->extra->{$activePackageKey} as $packageKey) {
+			$this->outputLine($packageKey);
+			$service->install($packageKey);
+		}
+
+		$this->packageManager->forceSortAndSavePackageStates();
+	}
+
+	/**
+	 * Emits packages may have changed signal
+	 */
+	protected function emitPackagesMayHaveChangedSignal() {
+		$this->signalSlotDispatcher->dispatch('PackageManagement', 'packagesMayHaveChanged');
+	}
 
 	/**
 	 * Check environment and create folder structure
